@@ -18,7 +18,7 @@ function getBaseUrl(): string {
 
   // Fallback
   return Platform.OS === "android"
-    ? "http://192.168.100.138:3000"
+    ? "http://192.168.100.198:3000"
     : "http://localhost:3000";
 }
 
