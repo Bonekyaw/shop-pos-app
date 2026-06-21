@@ -1,48 +1,89 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-
-const MOCK_TABLES = [
-  { id: '1', number: 1, status: 'AVAILABLE', capacity: 4 },
-  { id: '2', number: 2, status: 'OCCUPIED', capacity: 2, currentOrderId: 'ord-123' },
-  { id: '3', number: 3, status: 'AVAILABLE', capacity: 6 },
-  { id: '4', number: 4, status: 'CLEANING', capacity: 4 },
-];
+import React, { useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useTables } from "../../hooks/useTables";
+import { TableCard } from "../../components/order/TableCard";
+import type { DiningTable } from "../../types/api";
 
 export default function TablesScreen() {
   const router = useRouter();
+  const { data: tables = [], isLoading, isError, refetch, isRefetching } = useTables();
 
-  const handleTablePress = (table: any) => {
-    if (table.status === 'AVAILABLE') {
-      router.push({ pathname: '/order/new', params: { tableId: table.id } });
-    } else if (table.status === 'OCCUPIED') {
-      router.push({ pathname: '/order/[id]', params: { id: table.currentOrderId } });
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
+  const handleTablePress = useCallback(
+    (table: DiningTable) => {
+      if (table.status === "AVAILABLE") {
+        router.push({ pathname: "/order/new", params: { tableId: table.id } });
+      } else if (table.status === "OCCUPIED" && table.currentOrder) {
+        router.push({
+          pathname: "/order/[id]",
+          params: { id: table.currentOrder.id },
+        });
+      }
+    },
+    [router],
+  );
+
+  const handleParcel = useCallback(() => {
+    router.push({ pathname: "/order/new", params: { type: "PARCEL" } });
+  }, [router]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: DiningTable }) => (
+      <TableCard table={item} onPress={handleTablePress} />
+    ),
+    [handleTablePress],
+  );
+
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Failed to load tables</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={MOCK_TABLES}
+        data={tables}
         numColumns={2}
         contentContainerStyle={styles.list}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.tableCard,
-              item.status === 'AVAILABLE' && styles.tableAvailable,
-              item.status === 'OCCUPIED' && styles.tableOccupied,
-              item.status === 'CLEANING' && styles.tableCleaning,
-            ]}
-            onPress={() => handleTablePress(item)}
-          >
-            <Text style={styles.tableNumber}>Table {item.number}</Text>
-            <Text style={styles.tableStatus}>{item.status}</Text>
-            <Text style={styles.tableCapacity}>{item.capacity} seats</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={renderItem}
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
       />
+      <TouchableOpacity style={styles.parcelBtn} onPress={handleParcel}>
+        <Text style={styles.parcelText}>Parcel / Takeaway</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -50,55 +91,51 @@ export default function TablesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8fafc",
   },
   list: {
-    padding: 16,
-    gap: 16,
+    padding: 8,
+    paddingBottom: 80,
   },
-  tableCard: {
-    flex: 1,
-    margin: 8,
-    padding: 16,
-    borderRadius: 12,
-    minHeight: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  errorText: {
+    fontSize: 16,
+    color: "#64748b",
+    marginBottom: 12,
   },
-  tableAvailable: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#86efac',
-    borderWidth: 1,
+  retryBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#3b82f6",
+    borderRadius: 8,
   },
-  tableOccupied: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fca5a5',
-    borderWidth: 1,
+  retryText: {
+    color: "#ffffff",
+    fontWeight: "600",
   },
-  tableCleaning: {
-    backgroundColor: '#fef9c3',
-    borderColor: '#fde047',
-    borderWidth: 1,
+  parcelBtn: {
+    position: "absolute",
+    bottom: 24,
+    left: 24,
+    right: 24,
+    backgroundColor: "#0f172a",
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  tableNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0f172a',
-  },
-  tableStatus: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-    marginTop: 4,
-  },
-  tableCapacity: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 4,
+  parcelText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
